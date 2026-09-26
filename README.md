@@ -11,7 +11,7 @@
 - **3D Model Generation**: Convert the 2D key profile into a 3D model with accurate cuts and dimensions.
 - **STL Export**: Export the 3D model as an STL file, ready for 3D printing.
 - **User-Friendly GUI**: Simple interface to upload images and generate models with a single click.
-- **Scalability**: Scale the key to real-world dimensions (default: 1 pixel = 0.1 mm; can be adjusted with a reference object).
+- **Scalability**: Scale the key to real-world dimensions from its measured length (falls back to 1 pixel = 0.1 mm).
 
 ## Demo
 
@@ -31,17 +31,19 @@ The app processes a photo of a key, extracts its shape, and generates a 3D model
 
 KeyForge3D relies on the following Python libraries:
 
-- `opencv-python`: For image processing and key shape extraction.
+- `opencv-python-headless`: For image processing and key shape extraction.
 - `numpy`: For numerical operations.
-- `trimesh`: For 3D model generation and STL export.
+- `trimesh`, `mapbox-earcut`, `manifold3d`: For 3D model generation, groove cutting and STL export.
 - `shapely`: For polygon operations.
 - `pillow`: For image display in the GUI.
 
 Install the dependencies using the following command:
 
 ```bash
-pip install opencv-python numpy trimesh shapely pillow
+pip install -r requirements.txt
 ```
+
+The GUI also needs Tk. The python.org installers for Windows and macOS include it. On Linux, install your distribution's Tk package (e.g. `sudo apt install python3-tk` or `sudo pacman -S tk`). Alternatively, on Linux or macOS, `./run.sh` creates a virtualenv with [uv](https://docs.astral.sh/uv/)'s managed Python, which includes Tk.
 
 ### Clone the Repository
 
@@ -54,25 +56,46 @@ cd KeyForge3D
 
 ## Usage
 
-1. **Run the App**:
-   - Run the main script to launch the GUI:
+1. **Take a good photo**:
+   - Put the key flat on plain paper and shoot from **directly above**, filling most of the frame. Leave a margin of paper on every side.
+   - Use soft, even light (e.g. near a window, no flash). Hard shadows along the key's edge get counted as part of the key and make cuts look shallower.
+   - A flatbed scanner gives the best results.
+   - Measure the key's overall length (tip to end of the bow) with a ruler or calipers. The photo alone can't tell how big the key is.
+
+2. **Run the App**:
 
    ```bash
-   python keyforge3d.py
+   ./run.sh            # or: python keyforge3d.py
    ```
 
-2. **Upload a Key Photo**:
-   - Click the "Upload Key Image" button and select a photo of a key.
-   - The key should be placed on a plain background (e.g., white paper) with good lighting for best results.
-   - Optionally, include a reference object (e.g., a coin) for accurate scaling (scaling is currently set to 1 pixel = 0.1 mm).
+   - Click "Upload Key Image" and pick the photo.
+   - Enter the **key length** in mm. You can also set the thickness, the number of cuts (0 = detect automatically), and the depth step for your key system.
+   - Click "Process Key and Generate 3D Model", then choose where to save the STL. The app shows the detected outline, the toothed region, and each cut it found, so you can check the detection before printing.
 
-3. **Process the Key**:
-   - Click the "Process Key and Generate 3D Model" button.
-   - The app will process the image, display the bitting code, and save the 3D model as `key_model.stl`.
+3. **Command line** (no GUI):
+
+   ```bash
+   ./run.sh photo.jpg --length 50 -o key.stl --overlay check.png
+   ./run.sh --help
+   ```
 
 4. **3D Printing**:
-   - Open the `key_model.stl` file in your 3D printing software (e.g., Cura, PrusaSlicer).
-   - Print the key using a strong material like PLA or ABS. Use a high resolution (e.g., 0.1 mm layer height) for accurate bitting cuts.
+   - Open the STL in your slicer (e.g. Cura, PrusaSlicer, Bambu Studio).
+   - Print flat with a fine layer height (0.1 mm) and a strong material. Plastic keys are good for test fits and emergencies, not daily use.
+
+### How it works and its limits
+
+- The model is the key's photographed silhouette extruded to the given thickness, so the cuts in the STL are the real cuts from the photo.
+- A photo can't show groove depths, so enter the grooves along the blade (the keyway profile) from caliper measurements: `face from-to depth`, in mm, measured across the blade from the **spine** (the straight, uncut back edge). `front` is the side facing the camera in the photo and `back` is the other side. Separate grooves with `;` in the GUI, or pass `-g` once per groove on the command line:
+
+  ```bash
+  ./run.sh photo.jpg --length 44.9 --thickness 1.9 -g "front 0.8-2.0 0.6" -g "back 3.0-4.6 0.5"
+  ```
+
+- Shadows and a slightly tilted phone make the outline read too wide on the shadowed side, and that is usually the toothed edge. To correct it, measure the key's width across (perpendicular to the blade) with calipers at two or more places, and give each as `distance from the bow end:width`. For example, the bow's widest point and the narrowest point next to it: `--check 9:20.45 --check 20:7.44`. KeyForge3D then fixes the scale across the key and trims the shadow off the darker side. The length still sets the scale along the key.
+
+  Grooves are cut square-bottomed, from the bow to the tip. The check image outlines them (magenta = front, orange = back), and the app prints the blade width so you can sanity-check your numbers.
+- The bitting code is an **estimate**: cut depth ÷ depth step. It depends on the depth step (Schlage 0.381 mm, Kwikset 0.584 mm) and on the photo's accuracy.
 
 ## Code Overview
 
@@ -86,6 +109,7 @@ The main script (`keyforge3d.py`) includes:
 ## Roadmap
 
 - [ ] Add a 3D model preview within the app.
+- [x] Scaling from a measured key length.
 - [ ] Support for scaling using a reference object (e.g., a coin).
 - [ ] Add key type identification (e.g., Schlage SC4, Kwikset KW1).
 - [ ] Improve bitting analysis accuracy with machine learning.

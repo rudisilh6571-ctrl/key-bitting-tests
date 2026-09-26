@@ -1,0 +1,7 @@
+opencv-python-headless
+numpy
+trimesh
+mapbox-earcut
+shapely
+pillow
+manifold3d
